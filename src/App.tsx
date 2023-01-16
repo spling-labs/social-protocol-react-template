@@ -1,10 +1,49 @@
-import { useEffect, useState } from 'react';
-import { Order_By, Post, ProtocolOptions, SocialProtocol } from '@spling/social-protocol';
+import { FC, ReactNode, useEffect, useMemo, useState } from 'react';
+import { Order_By, Post, User, ProtocolOptions, SocialProtocol } from '@spling/social-protocol';
 import PostItem from './components/PostItem';
-import { Keypair } from '@solana/web3.js';
+import { clusterApiUrl } from '@solana/web3.js';
 import { AppBar, CircularProgress, Container, Grid, IconButton, Toolbar, Typography } from '@mui/material';
+import { WalletModalProvider, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
+import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets';
+import { ConnectionProvider, useWallet, WalletProvider } from '@solana/wallet-adapter-react';
 
-function App() {
+// Default styles that can be overridden by your app
+require('@solana/wallet-adapter-react-ui/styles.css');
+
+export const App: FC = () => {
+  return (
+    <Context>
+      <Content />
+    </Context>
+  );
+};
+
+const Context: FC<{ children: ReactNode }> = ({ children }) => {
+  // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'.
+  const network = WalletAdapterNetwork.Mainnet;
+
+  // You can also provide a custom RPC endpoint.
+  const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+
+  const wallets = useMemo(
+    () => [
+      new PhantomWalletAdapter(),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [network]
+  );
+
+  return (
+    <ConnectionProvider endpoint={endpoint}>
+      <WalletProvider wallets={wallets} autoConnect>
+        <WalletModalProvider>{children}</WalletModalProvider>
+      </WalletProvider>
+    </ConnectionProvider>
+  );
+};
+
+const Content: FC = () => {
   // States
   const [socialProtocol, setSocialPorotcol] = useState<SocialProtocol>()
   const [posts, setPosts] = useState<Post[]>([])
@@ -12,15 +51,28 @@ function App() {
   const [endOfList, setEndOfList] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  const wallet = useWallet()
+
   // Initiliaze the Social Protocol.
   useEffect(() => {
-    const runCode = async () => {
-      const keyPair = Keypair.generate()
-      const socialProtocol = await new SocialProtocol(keyPair, null, { useIndexer: true } as ProtocolOptions).init()
-      setSocialPorotcol(socialProtocol)
+    if (wallet?.publicKey) {
+      const runCode = async () => {
+        const socialProtocol = await new SocialProtocol(wallet, null, { useIndexer: true } as ProtocolOptions).init()
+        setSocialPorotcol(socialProtocol)
+
+        // Lets check here if the user already exist.
+        const user = await socialProtocol.getUserByPublicKey(wallet.publicKey!)
+        if (user === null) {
+          console.log('User does not exist lets create one...');
+          const createdUser: User = await socialProtocol.createUser("Carrot", null, "I like carrots!")
+          console.log(JSON.stringify(createdUser));
+        } else {
+          console.log('Welcome back ' + user.nickname);
+        }
+      }
+      runCode()
     }
-    runCode()
-  }, [])
+  }, [wallet?.publicKey])
 
   // Trigger load posts.
   useEffect(() => {
@@ -70,6 +122,7 @@ function App() {
           <Typography variant="h6" style={{ flexGrow: 1 }}>
             Feed
           </Typography>
+          <WalletMultiButton style={{ marginRight: 10 }} />
           <IconButton
             onClick={() => { window.open('https://wa.me/31653742901', '_blank'); }}
             style={{ height: 42, width: 42, backgroundColor: '#271b2d', borderRadius: 36 / 2, justifyContent: 'center', alignItems: 'center', marginRight: 10 }}
@@ -124,6 +177,6 @@ function App() {
       </Grid>
     </Container>
   )
-}
+};
 
 export default App;

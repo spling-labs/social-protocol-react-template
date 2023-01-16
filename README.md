@@ -11,6 +11,8 @@ This template makes it easier for all developers to get started with their first
 
 If you have any questions about the SDK, join our [Discord](https://discord.gg/7e3QN3Hy64) to get help!
 
+Hinweis: Note: Check if there is a newer version of the @spling/social-protocol dependency available. 
+
 ## Get started
 
 Clone the project:
